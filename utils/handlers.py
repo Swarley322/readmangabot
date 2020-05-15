@@ -1,6 +1,5 @@
 import logging
-import os
-import pprint
+# import pprint
 
 
 from telegram import error, InlineKeyboardButton, InlineKeyboardMarkup,\
@@ -11,10 +10,11 @@ from utils.manga import search_manga_titles, check_manga_in_tracking, \
                         insert_manga_in_tracking, get_manga_title, \
                         get_manga_chapters_value
 from utils.users import get_or_create_subscriber, toogle_subscription, \
-                        get_users_tracking_manga, add_manga_to_users_tracking_list
+                        get_users_tracking_manga, add_manga_to_users_tracking_list, \
+                        delete_manga_from_tracking_list, check_manga_in_users_tacking_list
 from utils.utils import get_keyboard
 
-pp = pprint.PrettyPrinter(indent=4)
+# pp = pprint.PrettyPrinter(indent=4)
 
 
 def greet_user(update, context):
@@ -82,7 +82,6 @@ def manga_track(update, context):
     user = get_or_create_subscriber(update.effective_user, update.message)
     try:
         manga_id = int(update.message.text.replace('/track_', ''))
-        update.message.reply_text("downloading...")
         manga_title = get_manga_title(manga_id)
         manga_exists = add_manga_to_users_tracking_list(user.user_id, manga_id)
         if manga_exists:
@@ -90,6 +89,7 @@ def manga_track(update, context):
         else:
             update.message.reply_text(f"{manga_title} is already in your tracikng list")
         if not check_manga_in_tracking(manga_id):
+            update.message.reply_text("downloading...")
             insert_manga_in_tracking(manga_id)
         text = "If you want to add once more manga press /add_more or /cancel for quit"
         update.message.reply_text(text)
@@ -103,7 +103,7 @@ def manga_add_more(update, context):
     return "choose"
 
 
-def manga_leave_conversation(update, context):
+def leave_conversation(update, context):
     update.message.reply_text("See you later")
     return ConversationHandler.END
 
@@ -114,17 +114,49 @@ def dontknow(update, context):
 
 def get_tracking_manga(update, context):
     user = get_or_create_subscriber(update.effective_user, update.message)
-    if user.active:
-        tracking_manga = get_users_tracking_manga(user.user_id)
-        if tracking_manga is not None:
-            text = "Your manga:\n"
-            for manga_id in tracking_manga:
-                text += f"""
+    tracking_manga = get_users_tracking_manga(user.user_id)
+    if tracking_manga is not None:
+        text = "Your manga:\n"
+        for manga_id in tracking_manga:
+            text += f"""
 Title: {get_manga_title(manga_id)}
 Chapters: {get_manga_chapters_value(manga_id)}
 """
-            update.message.reply_text(text)
-        else:
-            update.message.reply_text("you don't have any manga in your tracking list")
+        update.message.reply_text(text)
     else:
-        update.message.reply_text("You haven't subscribed, press /subscribe for subscribing")
+        update.message.reply_text("you don't have any manga in your tracking list")
+
+
+def delete_manga_start(update, context):
+    user = get_or_create_subscriber(update.effective_user, update.message)
+    tracking_manga = get_users_tracking_manga(user.user_id)
+    if tracking_manga is not None:
+        text = "Choose manga:\n"
+        for manga_id in tracking_manga:
+            text += f"""
+Title: {get_manga_title(manga_id)}
+/delete_{manga_id}
+"""
+        update.message.reply_text(text)
+        update.message.reply_text("press /cancel for leaving conversation")
+        return "delete"
+    else:
+        update.message.reply_text("you don't have tracking manga")
+        return ConversationHandler.END
+
+
+def delete_manga_choose(update, context):
+    user = get_or_create_subscriber(update.effective_user, update.message)
+    try:
+        manga_id = int(update.message.text.replace('/delete_', ''))
+        manga_exist = check_manga_in_users_tacking_list(user.user_id, manga_id)
+        if manga_exist:
+            delete_manga_from_tracking_list(user.user_id, manga_id)
+            manga_title = get_manga_title(manga_id)
+            update.message.reply_text(f"{manga_title} deleted from your tracking list")
+        else:
+            update.message.reply_text("don't do this again")
+    except ValueError:
+        update.message.reply_text("don't do this again")
+    finally:
+        return ConversationHandler.END

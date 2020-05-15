@@ -53,3 +53,24 @@ def get_users_tracking_manga(user_id):
     user = s.query(Subscribers).filter_by(user_id=user_id).first()
     s.close()
     return user.tracking_list
+
+
+def check_manga_in_users_tacking_list(user_id, manga_id):
+    """returns True if manga_id in users tracking_list else returns False
+
+       user_id - integer
+       manga_id - integer"""
+    users_tracking_manga = get_users_tracking_manga(user_id)
+    if users_tracking_manga is not None and manga_id in users_tracking_manga:
+        return True
+    else:
+        return False
+
+
+def delete_manga_from_tracking_list(user_id, manga_id):
+    user = s.query(Subscribers).filter_by(user_id=user_id).first()
+    new_tracking_list = user.tracking_list[:]
+    new_tracking_list.remove(manga_id)
+    user.tracking_list = new_tracking_list
+    s.commit()
+    s.close()
