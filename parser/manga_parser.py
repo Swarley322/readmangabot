@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup as BS
 
 
 def get_random_sleep_time():
-    return random.randint(1, 5)
+    return random.randint(1, 7)
 
 
 def get_html(url):

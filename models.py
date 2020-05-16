@@ -29,7 +29,7 @@ class Subscribers(Base):
 
     def __repr__(self):
         return "<User(chat_id='{}', manga_tracking={})>" \
-            .format(self.chat_id, self.manga_tracking)
+            .format(self.chat_id, self.tracking_list)
 
 
 class Tracking(Base):
@@ -43,9 +43,10 @@ class Tracking(Base):
     update_date = Column(Date)
     chapters = Column(JSON)
     number_of_chapters = Column(Integer)
+    new_chapters = Column(Boolean)
 
     manga = relationship("Manga", backref="tracking")
 
     def __repr__(self):
         return "<Manga tracking(manga_id='{}', chapters={})>" \
-            .format(self.manga_id, self.number_of_chaptersa)
+            .format(self.manga_id, self.number_of_chapters)

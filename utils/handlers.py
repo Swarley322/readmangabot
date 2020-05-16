@@ -7,11 +7,12 @@ from telegram import error, InlineKeyboardButton, InlineKeyboardMarkup,\
 from telegram.ext import ConversationHandler
 
 from utils.manga import search_manga_titles, check_manga_in_tracking, \
-                        insert_manga_in_tracking, get_manga_title, \
-                        get_manga_chapters_value
+                        add_manga_in_tracking, get_manga_title, \
+                        get_manga_chapters_value, update_manga_in_tracking
 from utils.users import get_or_create_subscriber, toogle_subscription, \
                         get_users_tracking_manga, add_manga_to_users_tracking_list, \
-                        delete_manga_from_tracking_list, check_manga_in_users_tacking_list
+                        delete_manga_from_tracking_list, check_manga_in_users_tacking_list, \
+                        get_all_active_users, get_all_updated_user_manga
 from utils.utils import get_keyboard
 
 # pp = pprint.PrettyPrinter(indent=4)
@@ -67,14 +68,14 @@ def manga_choose(update, context):
 def manga_search(update, context):
     mangas = search_manga_titles(update.message.text)
     if not mangas:
-        update.message.reply_text("Try again or press /cancel if you want to leave conversation")
+        update.message.reply_text(" Coudn't find any manga, press /try_again or press /cancel if you want to leave conversation")
         return "search"
     else:
         text = ""
         for manga in mangas:
             text += f"{manga['title']}\n/track_{manga['id']}\n\n"
         update.message.reply_text(text)
-        update.message.reply_text("for leaving conversation press /cancel")
+        update.message.reply_text("Press /try_again or press /cancel if you want to leave conversation")
         return "track"
 
 
@@ -88,9 +89,13 @@ def manga_track(update, context):
             update.message.reply_text(f"{manga_title} added in your tracking list")
         else:
             update.message.reply_text(f"{manga_title} is already in your tracikng list")
-        if not check_manga_in_tracking(manga_id):
+        manga_exist = check_manga_in_tracking(manga_id)
+        if not manga_exist:
             update.message.reply_text("downloading...")
-            insert_manga_in_tracking(manga_id)
+            add_manga_in_tracking(manga_id)
+        elif manga_exist == "not up to date":
+            update.message.reply_text("downloading...")
+            update_manga_in_tracking(manga_id)
         text = "If you want to add once more manga press /add_more or /cancel for quit"
         update.message.reply_text(text)
         return "add_more"
@@ -160,3 +165,20 @@ def delete_manga_choose(update, context):
         update.message.reply_text("don't do this again")
     finally:
         return ConversationHandler.END
+
+
+def send_updated_manga(context):
+    all_active_users = get_all_active_users()
+    # print(all_active_users)
+    if all_active_users is not None:
+        for user in all_active_users:
+            try:
+                text = get_all_updated_user_manga(user.user_id)
+                if text:
+                    context.bot.send_message(chat_id=user.chat_id, text=text)
+                else:
+                    text = "No new Manga"
+                    context.bot.send_message(chat_id=user.chat_id, text=text)
+            except error.BadRequest:
+                print("Chat {} not found".format(user.chat_id))
+                toogle_subscription(user.user_id)

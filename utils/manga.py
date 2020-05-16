@@ -2,39 +2,26 @@
 import time
 from datetime import date
 
-from crud import session
+from crud import s
 from models import Subscribers, Tracking, Manga
 
 from parser.manga_parser import get_chapters_value, get_html, \
                                 get_random_sleep_time
 
-s = session()
-
-
-def get_active_tracking_manga():
-    """returns set of active tracking manga or False"""
-    active_users_list = [user for user in s.query(Subscribers).all() if user.active and user.tracking_list]
-    s.close()
-    if active_users_list:
-        set_manga_id = set()
-        for user in active_users_list:
-            for manga_id in user.tracking_list:
-                set_manga_id.add(manga_id)
-        return set_manga_id
-    return False
-
 
 def check_manga_in_tracking(manga_id):
     """returns True if manga in Tracking table"""
-    manga_exist = s.query(Tracking).filter_by(manga_id=manga_id).count()
+    manga = s.query(Tracking).filter_by(manga_id=manga_id)
     s.close()
-    if manga_exist == 0:
+    if manga.count() == 0:
         return False
+    elif manga.first().update_date != date.today():
+        return "not up to date"
     return True
 
 
-def insert_manga_in_tracking(manga_id):
-    """Inserts manga in Tracking table"""
+def add_manga_in_tracking(manga_id):
+    """adds manga in Tracking table"""
     time.sleep(get_random_sleep_time())
     manga_url = s.query(Manga).filter_by(id=manga_id).first().url
     html = get_html(manga_url)
@@ -46,6 +33,21 @@ def insert_manga_in_tracking(manga_id):
         number_of_chapters=len(chapters)
     )
     s.add(new_manga)
+    s.commit()
+    s.close()
+    return True
+
+
+def update_manga_in_tracking(manga_id):
+    time.sleep(get_random_sleep_time())
+    manga_url = s.query(Manga).filter_by(id=manga_id).first().url
+    s.close()
+    html = get_html(manga_url)
+    chapters = get_chapters_value(html)
+    manga = s.query(Tracking).filter_by(manga_id=manga_id).first()
+    manga.chapters = chapters
+    manga.update_date = date.today()
+    manga.number_of_chapters = len(chapters)
     s.commit()
     s.close()
     return True

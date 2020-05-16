@@ -8,3 +8,6 @@ engine = create_engine(DATABASE_URI)
 session = sessionmaker(bind=engine)
 
 s = session()
+
+# alembic revision --autogenerate -m ""
+# alembic upgrade head
