@@ -9,19 +9,14 @@ def add_manga_to_users_tracking_list(user_id, manga_id):
     """Function returns False if manga is already tracking
        or adds manga_id in users tracking_list and returns True"""
     user = s.query(Subscribers).filter_by(user_id=user_id).first()
-    if user.tracking_list is not None and manga_id in user.tracking_list:
-        s.close()
-        return False
-    elif user.tracking_list is None:
+    if user.tracking_list is None:
         user.tracking_list = [manga_id]
         s.commit()
         s.close()
-        return True
     else:
         user.tracking_list = user.tracking_list + [manga_id]
         s.commit()
         s.close()
-        return True
 
 
 def toogle_subscription(user_id):

@@ -63,7 +63,10 @@ def parse_all_pages():
 
 def get_chapters_value(html):
     soup = BS(html, "html.parser")
-    chapters = soup.find('table', class_="table table-hover").find_all('tr')[1:]
+    try:
+        chapters = soup.find('table', class_="table table-hover").find_all('tr')[1:]
+    except AttributeError:
+        return "no chapters"
     result = []
     for chapter in chapters:
         chapter_name = re.sub(r'\s{2,}', " | ", chapter.text.strip().replace('\n', ''))

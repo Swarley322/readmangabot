@@ -3,7 +3,7 @@ import time
 from datetime import date
 
 from crud import s
-from models import Subscribers, Tracking, Manga
+from models import Tracking, Manga
 
 from parser.manga_parser import get_chapters_value, get_html, \
                                 get_random_sleep_time
@@ -26,6 +26,8 @@ def add_manga_in_tracking(manga_id):
     manga_url = s.query(Manga).filter_by(id=manga_id).first().url
     html = get_html(manga_url)
     chapters = get_chapters_value(html)
+    if chapters == "no chapters":
+        return False
     new_manga = Tracking(
         manga_id=manga_id,
         update_date=date.today(),
@@ -44,6 +46,8 @@ def update_manga_in_tracking(manga_id):
     s.close()
     html = get_html(manga_url)
     chapters = get_chapters_value(html)
+    if chapters == "no chapters":
+        return False
     manga = s.query(Tracking).filter_by(manga_id=manga_id).first()
     manga.chapters = chapters
     manga.update_date = date.today()
@@ -76,3 +80,16 @@ def get_manga_chapters_value(manga_id):
     chapters = s.query(Tracking).filter_by(manga_id=manga_id).first()
     s.close()
     return chapters.number_of_chapters
+
+
+def delete_manga(manga_id):
+    manga = s.query(Manga).filter_by(id=manga_id).first()
+    s.delete(manga)
+    s.commit()
+    s.close()
+
+
+def get_manga_chapters(manga_id):
+    manga = s.query(Tracking).filter_by(manga_id=manga_id).first()
+    s.close()
+    return manga.chapters

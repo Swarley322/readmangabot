@@ -9,7 +9,7 @@ from utils.handlers import greet_user, talk_to_me, subscribe, unsubscribe, \
                            get_tracking_manga, manga_choose, manga_search, \
                            manga_track, dontknow, leave_conversation, \
                            delete_manga_start, delete_manga_choose, \
-                           send_updated_manga
+                           send_updated_manga, get_last_chapter
 
 from periodic_tasks import erase_new_chapters, update_all_active_mangas
 
@@ -39,6 +39,7 @@ def main():
             ],
             "track": [
                 CommandHandler('cancel', leave_conversation),
+                CommandHandler('try_again', manga_choose),
                 MessageHandler(Filters.regex(r'/track_\d{1,}'), manga_track)
             ],
             'add_more': [
@@ -67,6 +68,7 @@ def main():
     dp.add_handler(CommandHandler("subscribe", subscribe))
     dp.add_handler(CommandHandler("unsubscribe", unsubscribe))
     dp.add_handler(CommandHandler("tracking_manga", get_tracking_manga))
+    dp.add_handler(MessageHandler(Filters.regex(r'/last_chapter_\d{1,}'), get_last_chapter))
 
     dp.add_handler(MessageHandler(Filters.text, talk_to_me))
 
