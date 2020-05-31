@@ -1,85 +1,108 @@
-from crud import session
-from models import Subscribers, Tracking
-from utils.manga import get_manga_title
-
-s = session()
+from db.base import s
+from db.models import User, Readmanga, Mintmanga
 
 
-def add_manga_to_users_tracking_list(user_id, manga_id):
-    """Function returns False if manga is already tracking
-       or adds manga_id in users tracking_list and returns True"""
-    user = s.query(Subscribers).filter_by(user_id=user_id).first()
-    if user.tracking_list is None:
-        user.tracking_list = [manga_id]
-        s.commit()
-        s.close()
-    else:
-        user.tracking_list = user.tracking_list + [manga_id]
-        s.commit()
-        s.close()
+def get_user(user_id):
+    user = s.query(User).filter_by(user_id=user_id).first()
+    return user
+
+
+def subscribe_to_manga(manga_site, user_id, manga_id):
+    """
+    manga_site - 'readmanga' or 'mintmanga'
+    user_id - telegram user_id from effective_user
+    manga_id - integer
+    adding readmanga/mintmanga to user supscriptions
+    """
+    user = get_user(user_id)
+    if manga_site == 'readmanga':
+        manga = s.query(Readmanga).filter_by(id=manga_id).first()
+        user.readmanga.append(manga)
+    elif manga_site == 'mintmanga':
+        manga = s.query(Mintmanga).filter_by(id=manga_id).first()
+        user.mintmanga.append(manga)
+    s.commit()
+
+
+def unsubscribe_from_manga(manga_site, user_id, manga_id):
+    """
+    manga_site - 'readmanga' or 'mintmanga'
+    user_id - telegram user_id from effective_user
+    returns list with readmanga/mintmanga ids
+    """
+    user = get_user(user_id)
+    if manga_site == 'readmanga':
+        manga = s.query(Readmanga).filter_by(id=manga_id).first()
+        user.readmanga.remove(manga)
+    elif manga_site == 'mintmanga':
+        manga = s.query(Mintmanga).filter_by(id=manga_id).first()
+        user.mintmanga.remove(manga)
+    s.commit()
 
 
 def toogle_subscription(user_id):
-    user = s.query(Subscribers).filter_by(user_id=user_id).first()
+    user = s.query(User).filter_by(user_id=user_id).first()
     if not user.active:
         user.active = True
     else:
         user.active = False
     s.commit()
-    s.close()
 
 
 def get_or_create_subscriber(effective_user, message):
-    subscriber = s.query(Subscribers).filter_by(user_id=effective_user.id).first()
+    subscriber = s.query(User).filter_by(user_id=effective_user.id).first()
     if not subscriber:
-        subscriber = Subscribers(
+        subscriber = User(
             username=effective_user.username,
             user_id=effective_user.id,
             chat_id=message.chat.id,
-            tracking_list=[],
             active=False
         )
         s.add(subscriber)
         s.commit()
-    s.close()
     return subscriber
 
 
-def get_users_tracking_manga(user_id):
-    user = s.query(Subscribers).filter_by(user_id=user_id).first()
-    s.close()
-    return user.tracking_list
+def get_subscribed_manga_ids(manga_site, user_id):
+    """
+    manga_site - 'readmanga' or 'mintmanga'
+    user_id - telegram user_id from effective_user
+    returns list with readmanga/mintmanga ids
+    """
+    user = get_user(user_id)
+    if manga_site == "readmanga":
+        subscriptions = []
+        for manga in user.readmanga:
+            subscriptions.append(manga.id)
+    elif manga_site == "mintmanga":
+        subscriptions = []
+        for manga in user.mintmanga:
+            subscriptions.append(manga.id)
+    return subscriptions
 
 
-def check_manga_in_users_tacking_list(user_id, manga_id):
-    """returns True if manga_id in users tracking_list else returns False
-
-       user_id - integer
-       manga_id - integer"""
-    users_tracking_manga = get_users_tracking_manga(user_id)
-    if users_tracking_manga is not None and manga_id in users_tracking_manga:
+def is_subscribed_to_manga(manga_site, user_id, manga_id):
+    """
+    manga_site - 'readmanga' or 'mintmanga'
+    user_id - telegram user_id from effective_user
+    manga_id - integer
+    returns True if user subscribed on manga else False
+    """
+    subscriptions = get_subscribed_manga_ids(manga_site, user_id)
+    if manga_id in subscriptions:
         return True
-    else:
-        return False
-
-
-def delete_manga_from_tracking_list(user_id, manga_id):
-    user = s.query(Subscribers).filter_by(user_id=user_id).first()
-    new_tracking_list = user.tracking_list[:]
-    new_tracking_list.remove(manga_id)
-    user.tracking_list = new_tracking_list
-    s.commit()
-    s.close()
+    return False
 
 
 def get_all_active_users():
-    users_list = s.query(Subscribers).filter_by(active=True).all()
-    s.close()
+    users_list = s.query(User).filter_by(active=True).all()
     return users_list
 
 
+
+# NEED TO REFACTOR
 def get_all_updated_user_manga(user_id):
-    user = s.query(Subscribers).filter_by(user_id=user_id).first()
+    user = s.query(User).filter_by(user_id=user_id).first()
     updated_manga = []
     for manga_id in user.tracking_list:
         manga = s.query(Tracking).filter_by(manga_id=manga_id).first()

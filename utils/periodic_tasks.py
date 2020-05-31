@@ -1,6 +1,6 @@
 import time
-from crud import s
-from models import Tracking, Subscribers
+from db.base import s
+# from db.models import Tracking, Subscribers
 from utils.manga import check_manga_in_tracking, update_manga_in_tracking, \
                         get_chapters_value
 from parser.manga_parser import get_random_sleep_time

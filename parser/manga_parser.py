@@ -1,7 +1,7 @@
-import csv
 import random
 import re
 import time
+import json
 
 import requests
 
@@ -24,44 +24,45 @@ def get_html(url):
         return False
 
 
-page = "https://readmanga.me/list?sortType=rate&offset={}"
-manga_url = "https://readmanga.me/klinok__rassekaiuchii_demonov"
+readmanga_url = "https://readmanga.me/list?sortType=rate&offset={page}"
+mintmanga_url = "https://mintmanga.live/list?sortType=rate&offset={page}"
+mintmanga = "https://mintmanga.live"
+readmanga = "https://readmanga.me"
 
 
-def get_mangas_from_page(html):
+def get_mangas_from_page(html, site):
     soup = BS(html, "html.parser")
     manga_list = soup.find_all('div', class_="tile col-sm-6")
     for manga in manga_list:
         try:
             name = manga.find('div', class_="desc").find("h3").find('a')["title"]
-            url = "https://readmanga.me" + manga.find('div', class_="desc").find("h3").find('a')["href"]
+            url = site + manga.find('div', class_="desc").find("h3").find('a')["href"]
             img = manga.find('div', class_="img").find('img')["data-original"]
             # eng_name = manga.find('div', class_="desc").find("h4")['title']
-            genre_list = [genre.text for genre in manga.find('div', class_="tile-info").find_all('a')]
             yield {
-                "manga_title": name,
-                "manga_url": url,
-                "manga_img": img,
-                "genre_list": genre_list
+                "title": name,
+                "url": url,
+                "img": img,
             }
         except (KeyError, AttributeError):
             continue
 
 
-def parse_all_pages():
-    page_url = "https://readmanga.me/list?sortType=rate&offset={page}"
-    for page in range(0, 18340, 70):
-        url = page_url.format(page=page)
-        html = get_html(url)
-        with open('manga_list.csv', 'a+', encoding='utf-8', newline='') as f:
-            fields = ['manga_title', 'manga_url', 'manga_img', 'genre_list']
-            writer = csv.DictWriter(f, delimiter=';', fieldnames=fields)
-            for manga in get_mangas_from_page(html):
-                writer.writerow(manga)
+def parse_all_pages(url, pages, site):
+    result = []
+    for page in range(0, pages, 70):
+        my_url = url.format(page=page)
+        html = get_html(my_url)
+        for manga in get_mangas_from_page(html, site):
+            result.append(manga)
+        print(len(result))
+        with open('manga_list.json', 'w') as f:
+            json.dump(result, f, ensure_ascii=False)
         time.sleep(get_random_sleep_time())
 
 
 def get_chapters_value(html):
+    '''returns list of chapters or "no chapters"'''
     soup = BS(html, "html.parser")
     try:
         chapters = soup.find('table', class_="table table-hover").find_all('tr')[1:]
@@ -79,3 +80,10 @@ def get_chapters_value(html):
             "chapter_url": chapter_url
         })
     return result
+
+
+if __name__ == "__main__":
+    # parse_all_pages(mintmanga_url, 12600, mintmanga)
+    g = "https://mintmanga.live/vtorjenie_gigantov"
+    html = get_html(g)
+    print(get_chapters_value(html))

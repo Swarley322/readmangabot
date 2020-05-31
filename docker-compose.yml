@@ -1,0 +1,32 @@
+version: "2.3"
+services:
+    db:
+        image: postgres
+        container_name: postgres
+        environment:
+            POSTGRES_DB: postgres
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+        restart: always
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        ports:
+            - 5432:5432
+        volumes:
+            - ../test_volume:/var/lib/postgresql/data
+    bot:
+        build: .
+        container_name: readmangabot
+        restart: always
+        environment:
+            - CELERY_BROKER_URL=redis://redis:6379/
+            - API_KEY=123
+        
+        links:
+            - db
+        depends_on:
+            db:
+                condition: service_healthy

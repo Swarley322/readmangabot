@@ -2,16 +2,17 @@ import logging
 # import pprint
 
 from telegram import error, InlineKeyboardButton, InlineKeyboardMarkup,\
-                     ParseMode, ReplyKeyboardMarkup, ReplyKeyboardRemove
+                     ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ConversationHandler
 
-from utils.manga import search_manga_titles, check_manga_in_tracking, \
-                        add_manga_in_tracking, get_manga_title, \
-                        get_manga_chapters_value, update_manga_in_tracking, \
-                        delete_manga, get_manga_chapters
+from utils.manga import delete_manga, get_manga_title, \
+                        get_manga_chapters, get_manga_chapters_value, \
+                        search_manga_titles, update_manga
 from utils.users import get_or_create_subscriber, toogle_subscription, \
-                        get_users_tracking_manga, add_manga_to_users_tracking_list, \
-                        delete_manga_from_tracking_list, check_manga_in_users_tacking_list, \
+                        get_subscribed_manga_ids, \
+                        is_subscribed_to_manga, \
+                        subscribe_to_manga, \
+                        unsubscribe_from_manga, \
                         get_all_active_users, get_all_updated_user_manga
 from utils.utils import get_keyboard
 
@@ -58,23 +59,55 @@ def unsubscribe(update, context):
 def manga_choose(update, context):
     user = get_or_create_subscriber(update.effective_user, update.message)
     if user.active:
-        update.message.reply_text("please enter any manga title or press /cancel if you want to leave conversation")
-        return "search"
+        inlinekeyboard = [[
+                InlineKeyboardButton("Mintmanga", callback_data='mintmanga'),
+                InlineKeyboardButton("Readmanga", callback_data='readmanga'),
+                InlineKeyboardButton("Cancel", callback_data='cancel')
+        ]]
+        kbd_markup = InlineKeyboardMarkup(inlinekeyboard)
+        update.message.reply_text("Choose provider", reply_markup=kbd_markup)
+        return "choose_provider"
     else:
         update.message.reply_text("You haven't subscribed, press /subscribe for subscribing")
         return ConversationHandler.END
 
 
-def manga_search(update, context):
-    user_message = update.message.text.strip()
+def inline_button_pressed(update, context):
+    query = update.callback_query
+    text = "Enter any manga title or press /cancel"
+    if query.data == "mintmanga":
+        context.bot.edit_message_text(
+                    text=text,
+                    chat_id=query.message.chat.id,
+                    message_id=query.message.message_id
+        )
+        print('mintmanga')
+        return "search_mintmanga"
+    elif query.data == "readmanga":
+        context.bot.edit_message_text(
+                    text=text,
+                    chat_id=query.message.chat.id,
+                    message_id=query.message.message_id
+        )
+        return "search_readmanga"
+    elif query.data == "cancel":
+        context.bot.edit_message_text(
+                    text="Goode bye",
+                    chat_id=query.message.chat.id,
+                    message_id=query.message.message_id
+        )
+        return ConversationHandler.END
 
+
+def readmanga_search(update, context):
+    user_message = update.message.text.strip()
     if len(user_message) <= 3 or user_message.count(" ") >= 4:
-        update.message.reply_text("dont'understand you tyr again or press /cancel")
-        return "search"
-    mangas = search_manga_titles(user_message)
+        update.message.reply_text("dont'understand you try again or press /cancel")
+        return "search_readmanga"
+    mangas = search_manga_titles('readmanga', user_message)
     if not mangas:
-        update.message.reply_text("Coudn't find any manga, try again or press /cancel if you want to leave conversation")
-        return "search"
+        update.message.reply_text("Couldn't find any manga, try again or press /cancel if you want to leave conversation")
+        return "search_readmanga"
     else:
         text = ""
         for manga in mangas:
@@ -82,53 +115,90 @@ def manga_search(update, context):
             if len(text) > 4000:
                 update.message.reply_text(text)
                 update.message.reply_text("Press /try_again or press /cancel if you want to leave conversation")
-                return "track"
+                return "readmanga_track"
         update.message.reply_text(text)
         update.message.reply_text("Press /try_again or press /cancel if you want to leave conversation")
-        return "track"
+        return "readmanga_track"
 
 
-def manga_track(update, context):
+def mintmanga_search(update, context):
+    user_message = update.message.text.strip()
+    if len(user_message) <= 3 or user_message.count(" ") >= 4:
+        update.message.reply_text("dont'understand you tyr again or press /cancel")
+        return "search_mintmanga"
+    mangas = search_manga_titles('mintmanga', user_message)
+    if not mangas:
+        update.message.reply_text("Couldn't find any manga, try again or press /cancel if you want to leave conversation")
+        return "search_mintmanga"
+    else:
+        text = ""
+        for manga in mangas:
+            text += f"{manga['title']}\n/track_{manga['id']}\n\n"
+            if len(text) > 4000:
+                update.message.reply_text(text)
+                update.message.reply_text("Press /try_again or press /cancel if you want to leave conversation")
+                return "mintmanga_track"
+        update.message.reply_text(text)
+        update.message.reply_text("Press /try_again or press /cancel if you want to leave conversation")
+        return "mintmanga_track"
+
+
+def readmanga_track(update, context):
     user = get_or_create_subscriber(update.effective_user, update.message)
     try:
         manga_id = int(update.message.text.replace('/track_', ''))
-        manga_title = get_manga_title(manga_id)
-        manga_in_users_tracking_list = check_manga_in_users_tacking_list(user.user_id, manga_id)
-        if manga_in_users_tracking_list:
+        manga_title = get_manga_title('readmanga', manga_id)
+        text = "If you want to add once more manga press /add_more or /cancel for quit"
+        if is_subscribed_to_manga('readmanga', user.user_id, manga_id):
             update.message.reply_text(f"{manga_title} is already in your tracikng list")
+            update.message.reply_text(text)
             return "add_more"
         else:
-            manga_exist = check_manga_in_tracking(manga_id)
             update.message.reply_text("adding...")
+            update = update_manga('readmanga', manga_id)
+            if not update:
+                update.message.reply_text("no chapters in manga")
+                delete_manga('readmanga', manga_id)
+                update.message.reply_text(text)
+                return "add_more"
+            subscribe_to_manga('readmanga', user.user_id, manga_id)
+            update.message.reply_text(f"{manga_title} added in your tracking list")
+            update.message.reply_text(text)
+            return "add_more"
+    except ValueError:
+        update.message.reply_text("don't do this again")
+        return ConversationHandler.END
 
-            if not manga_exist:
-                if not add_manga_in_tracking(manga_id):
-                    update.message.reply_text("no chapters in manga")
-                    delete_manga(manga_id)
-                else:
-                    update.message.reply_text(f"{manga_title} added in your tracking list")
-                    text = "If you want to add once more manga press /add_more or /cancel for quit"
-                    update.message.reply_text(text)
-                    add_manga_to_users_tracking_list(user.user_id, manga_id)
-                    return "add_more"
-            elif manga_exist == "not up to date":
-                if not update_manga_in_tracking(manga_id):
-                    update.message.reply_text("no chapters in manga")
-                    delete_manga(manga_id)
-                else:
-                    update.message.reply_text(f"{manga_title} added in your tracking list")
-                    text = "If you want to add once more manga press /add_more or /cancel for quit"
-                    update.message.reply_text(text)
-                    add_manga_to_users_tracking_list(user.user_id, manga_id)
-                    return "add_more"
-            return ConversationHandler.END
+
+def mintmanga_track(update, context):
+    user = get_or_create_subscriber(update.effective_user, update.message)
+    try:
+        manga_id = int(update.message.text.replace('/track_', ''))
+        manga_title = get_manga_title('mintmanga', manga_id)
+        text = "If you want to add once more manga press /add_more or /cancel for quit"
+        if is_subscribed_to_manga('mintmanga', user.user_id, manga_id):
+            update.message.reply_text(f"{manga_title} is already in your tracikng list")
+            update.message.reply_text(text)
+            return "add_more"
+        else:
+            update.message.reply_text("adding...")
+            update = update_manga('mintmanga', manga_id)
+            if not update:
+                update.message.reply_text("no chapters in manga")
+                delete_manga('mintmanga', manga_id)
+                update.message.reply_text(text)
+                return "add_more"
+            subscribe_to_manga('mintmanga', user.user_id, manga_id)
+            update.message.reply_text(f"{manga_title} added in your tracking list")
+            update.message.reply_text(text)
+            return "add_more"
     except ValueError:
         update.message.reply_text("don't do this again")
         return ConversationHandler.END
 
 
 def manga_add_more(update, context):
-    return "choose"
+    return "choose_manga"
 
 
 def leave_conversation(update, context):
@@ -140,9 +210,10 @@ def dontknow(update, context):
     update.message.reply_text("Don't understand you, press /cancel for leaving conversation")
 
 
-def get_tracking_manga(update, context):
+#refactor
+def get_subscribed_readmanga(update, context):
     user = get_or_create_subscriber(update.effective_user, update.message)
-    tracking_manga = get_users_tracking_manga(user.user_id)
+    tracking_manga = get_subscribed_manga_ids('readmanga', user.user_id)
     if tracking_manga is not None:
         text = "Your manga:\n"
         for manga_id in tracking_manga:
@@ -156,9 +227,9 @@ Chapters: {get_manga_chapters_value(manga_id)}
         update.message.reply_text("you don't have any manga in your tracking list")
 
 
-def delete_manga_start(update, context):
+def delete_readmanga_start(update, context):
     user = get_or_create_subscriber(update.effective_user, update.message)
-    tracking_manga = get_users_tracking_manga(user.user_id)
+    tracking_manga = get_subscribed_manga_ids('readmanga', user.user_id)
     if tracking_manga is not None:
         text = "Choose manga:\n"
         for manga_id in tracking_manga:
@@ -174,14 +245,14 @@ Title: {get_manga_title(manga_id)}
         return ConversationHandler.END
 
 
-def delete_manga_choose(update, context):
+def delete_readmanga_choose(update, context):
     user = get_or_create_subscriber(update.effective_user, update.message)
     try:
         manga_id = int(update.message.text.replace('/delete_', ''))
-        manga_exist = check_manga_in_users_tacking_list(user.user_id, manga_id)
+        manga_exist = is_subscribed_to_manga(user.user_id, manga_id)
         if manga_exist:
-            delete_manga_from_tracking_list(user.user_id, manga_id)
-            manga_title = get_manga_title(manga_id)
+            unsubscribe_from_manga('readmanga', user.user_id, manga_id)
+            manga_title = get_manga_title('readmanga', manga_id)
             update.message.reply_text(f"{manga_title} deleted from your tracking list")
         else:
             update.message.reply_text("don't do this again")
@@ -208,10 +279,10 @@ def send_updated_manga(context):
                 toogle_subscription(user.user_id)
 
 
-def get_last_chapter(update, context):
+def get_last_readmanga_chapter(update, context):
     user = get_or_create_subscriber(update.effective_user, update.message)
     manga_id = int(update.message.text.replace('/last_chapter_', ''))
-    if check_manga_in_users_tacking_list(user.user_id, manga_id):
+    if is_subscribed_to_manga('readmanga', user.user_id, manga_id):
         chapters = get_manga_chapters(manga_id)
         text = f'title: {chapters[0]["chapter_name"]}\nurl: {chapters[0]["chapter_url"]}'
         update.message.reply_text(text)
